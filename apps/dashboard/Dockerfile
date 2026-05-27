@@ -10,6 +10,8 @@ FROM turbo-cli AS builder
 WORKDIR /app
 # Copy all files
 COPY . .
+# Ensure .git-commit-sha exists (may not be present outside CI)
+RUN touch .git-commit-sha
 # Prune dashboard workspace
 RUN turbo prune @midday/dashboard --docker
 

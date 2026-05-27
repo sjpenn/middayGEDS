@@ -9,6 +9,8 @@ RUN bun add -g turbo
 FROM turbo-cli AS builder
 WORKDIR /app
 COPY . .
+# Ensure .git-commit-sha exists (may not be present outside CI)
+RUN touch .git-commit-sha
 RUN turbo prune @midday/worker --docker --out-dir=out/worker
 
 # Installer stage - install deps and build

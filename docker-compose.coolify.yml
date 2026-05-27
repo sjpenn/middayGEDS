@@ -1,0 +1,378 @@
+# ============================================================
+#  Midday — Coolify Production Deployment
+#  Deploy this file in Coolify → New Resource → Docker Compose
+#
+#  Required domains (set in Coolify's environment variables):
+#    DASHBOARD_DOMAIN  → e.g. app.yourdomain.com
+#    API_DOMAIN        → e.g. api.yourdomain.com
+# ============================================================
+
+services:
+
+  # ──────────────────────────────────────────
+  # Redis  (cache + BullMQ job queue)
+  # ──────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - midday
+
+  # ──────────────────────────────────────────
+  # API  (Hono/Bun — port 8080)
+  # ──────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      LOG_PRETTY: "false"
+
+      # ── Supabase ──
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+
+      # ── Database (Supabase Pooler URL) ──
+      DATABASE_PRIMARY_URL: ${DATABASE_PRIMARY_URL}
+      DATABASE_SESSION_POOLER: ${DATABASE_SESSION_POOLER}
+
+      # ── Redis ──
+      REDIS_URL: redis://redis:6379
+      REDIS_QUEUE_URL: redis://redis:6379
+
+      # ── Resend (email) ──
+      RESEND_API_KEY: ${RESEND_API_KEY}
+
+      # ── OpenAI ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # ── Google AI ──
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+
+      # ── R2 Storage ──
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+
+      # ── Banking: Plaid ──
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SECRET: ${PLAID_SECRET}
+      PLAID_ENVIRONMENT: ${PLAID_ENVIRONMENT:-sandbox}
+
+      # ── Banking: GoCardless ──
+      GOCARDLESS_SECRET_ID: ${GOCARDLESS_SECRET_ID}
+      GOCARDLESS_SECRET_KEY: ${GOCARDLESS_SECRET_KEY}
+
+      # ── Banking: Teller ──
+      TELLER_CERT_BASE64: ${TELLER_CERT_BASE64}
+      TELLER_KEY_BASE64: ${TELLER_KEY_BASE64}
+      TELLER_SIGNING_SECRET: ${TELLER_SIGNING_SECRET}
+
+      # ── Stripe ──
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      STRIPE_CONNECT_WEBHOOK_SECRET: ${STRIPE_CONNECT_WEBHOOK_SECRET}
+
+      # ── Polar ──
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN}
+      POLAR_ENVIRONMENT: ${POLAR_ENVIRONMENT:-sandbox}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET}
+
+      # ── Secrets ──
+      INVOICE_JWT_SECRET: ${INVOICE_JWT_SECRET}
+      MIDDAY_ENCRYPTION_KEY: ${MIDDAY_ENCRYPTION_KEY}
+      FILE_KEY_SECRET: ${FILE_KEY_SECRET}
+      WEBHOOK_SECRET_KEY: ${WEBHOOK_SECRET_KEY}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+
+      # ── URLs ──
+      ALLOWED_API_ORIGINS: "https://${DASHBOARD_DOMAIN}"
+      MIDDAY_DASHBOARD_URL: "https://${DASHBOARD_DOMAIN}"
+      MIDDAY_API_URL: "https://${API_DOMAIN}"
+
+      # ── Logo.dev ──
+      LOGO_DEV_TOKEN: ${LOGO_DEV_TOKEN}
+
+      # ── Trigger.dev ──
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY}
+
+      # ── Slack ──
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET}
+      SLACK_OAUTH_REDIRECT_URL: "https://${API_DOMAIN}/apps/slack/oauth-callback"
+      SLACK_STATE_SECRET: ${SLACK_STATE_SECRET}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET}
+      SLACK_ENCRYPTION_KEY: ${SLACK_ENCRYPTION_KEY}
+
+      # ── Telegram ──
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_SECRET_TOKEN: ${TELEGRAM_WEBHOOK_SECRET_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+
+      # ── Gmail ──
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET}
+      GMAIL_REDIRECT_URI: "https://${API_DOMAIN}/apps/gmail/oauth-callback"
+
+      # ── Outlook ──
+      OUTLOOK_CLIENT_ID: ${OUTLOOK_CLIENT_ID}
+      OUTLOOK_CLIENT_SECRET: ${OUTLOOK_CLIENT_SECRET}
+      OUTLOOK_REDIRECT_URI: "https://${API_DOMAIN}/apps/outlook/oauth-callback"
+
+      # ── Xero ──
+      XERO_CLIENT_ID: ${XERO_CLIENT_ID}
+      XERO_CLIENT_SECRET: ${XERO_CLIENT_SECRET}
+      XERO_OAUTH_REDIRECT_URL: "https://${API_DOMAIN}/apps/xero/oauth-callback"
+
+      # ── QuickBooks ──
+      QUICKBOOKS_CLIENT_ID: ${QUICKBOOKS_CLIENT_ID}
+      QUICKBOOKS_CLIENT_SECRET: ${QUICKBOOKS_CLIENT_SECRET}
+      QUICKBOOKS_OAUTH_REDIRECT_URL: "https://${API_DOMAIN}/apps/quickbooks/oauth-callback"
+      QUICKBOOKS_ENVIRONMENT: ${QUICKBOOKS_ENVIRONMENT:-sandbox}
+
+      # ── Fortnox ──
+      FORTNOX_CLIENT_ID: ${FORTNOX_CLIENT_ID}
+      FORTNOX_CLIENT_SECRET: ${FORTNOX_CLIENT_SECRET}
+      FORTNOX_OAUTH_REDIRECT_URL: "https://${API_DOMAIN}/apps/fortnox/oauth-callback"
+
+      # ── Inbox webhook ──
+      INBOX_WEBHOOK_USERNAME: ${INBOX_WEBHOOK_USERNAME}
+      INBOX_WEBHOOK_PASSWORD: ${INBOX_WEBHOOK_PASSWORD}
+
+      # ── Mistral ──
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+
+      # ── Optional: Sentry ──
+      SENTRY_DSN: ${SENTRY_DSN}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.midday-api.rule=Host(`${API_DOMAIN}`)
+      - traefik.http.routers.midday-api.entrypoints=https
+      - traefik.http.routers.midday-api.tls=true
+      - traefik.http.routers.midday-api.tls.certresolver=letsencrypt
+      - traefik.http.services.midday-api.loadbalancer.server.port=8080
+    networks:
+      - midday
+      - coolify
+
+  # ──────────────────────────────────────────
+  # Worker  (Bun background jobs — port 8080)
+  # ──────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      WORKER_ENV: production
+
+      # ── Supabase ──
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+
+      # ── Database ──
+      DATABASE_PRIMARY_URL: ${DATABASE_PRIMARY_URL}
+      DATABASE_PRIMARY_POOLER_URL: ${DATABASE_PRIMARY_URL}
+
+      # ── Redis ──
+      REDIS_URL: redis://redis:6379
+      REDIS_QUEUE_URL: redis://redis:6379
+
+      # ── OpenAI ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+
+      # ── R2 Storage ──
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+
+      # ── Email ──
+      RESEND_API_KEY: ${RESEND_API_KEY}
+
+      # ── Banking ──
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SECRET: ${PLAID_SECRET}
+      PLAID_ENVIRONMENT: ${PLAID_ENVIRONMENT:-sandbox}
+      GOCARDLESS_SECRET_ID: ${GOCARDLESS_SECRET_ID}
+      GOCARDLESS_SECRET_KEY: ${GOCARDLESS_SECRET_KEY}
+      TELLER_CERT_BASE64: ${TELLER_CERT_BASE64}
+      TELLER_KEY_BASE64: ${TELLER_KEY_BASE64}
+
+      # ── Secrets ──
+      INVOICE_JWT_SECRET: ${INVOICE_JWT_SECRET}
+      MIDDAY_ENCRYPTION_KEY: ${MIDDAY_ENCRYPTION_KEY}
+      FILE_KEY_SECRET: ${FILE_KEY_SECRET}
+
+      # ── Slack / Telegram / WhatsApp ──
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET}
+      SLACK_STATE_SECRET: ${SLACK_STATE_SECRET}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+
+      # ── Xero / QuickBooks / Fortnox ──
+      XERO_CLIENT_ID: ${XERO_CLIENT_ID}
+      XERO_CLIENT_SECRET: ${XERO_CLIENT_SECRET}
+      QUICKBOOKS_CLIENT_ID: ${QUICKBOOKS_CLIENT_ID}
+      QUICKBOOKS_CLIENT_SECRET: ${QUICKBOOKS_CLIENT_SECRET}
+      FORTNOX_CLIENT_ID: ${FORTNOX_CLIENT_ID}
+      FORTNOX_CLIENT_SECRET: ${FORTNOX_CLIENT_SECRET}
+
+      # ── Sendblue ──
+      SENDBLUE_API_KEY: ${SENDBLUE_API_KEY}
+      SENDBLUE_API_SECRET: ${SENDBLUE_API_SECRET}
+      SENDBLUE_FROM_NUMBER: ${SENDBLUE_FROM_NUMBER}
+
+      # ── Mistral / Exa ──
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      EXA_API_KEY: ${EXA_API_KEY}
+
+      # ── Internal ──
+      MIDDAY_API_URL: "https://${API_DOMAIN}"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      INSIGHTS_ENABLED: ${INSIGHTS_ENABLED:-false}
+    networks:
+      - midday
+
+  # ──────────────────────────────────────────
+  # Dashboard  (Next.js — port 3000)
+  # ──────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SUPABASE_ID: ${SUPABASE_PROJECT_ID}
+        NEXT_PUBLIC_URL: "https://${DASHBOARD_DOMAIN}"
+        NEXT_PUBLIC_API_URL: "https://${API_DOMAIN}"
+        NEXT_PUBLIC_PLAID_ENVIRONMENT: ${PLAID_ENVIRONMENT:-sandbox}
+        NEXT_PUBLIC_TELLER_APPLICATION_ID: ${TELLER_APPLICATION_ID}
+        NEXT_PUBLIC_TELLER_ENVIRONMENT: ${TELLER_ENVIRONMENT:-sandbox}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_GOOGLE_API_KEY: ${GOOGLE_MAPS_API_KEY}
+        NEXT_PUBLIC_DESKTOP_SCHEME: midday
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+
+      # ── Supabase ──
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_SUPABASE_ID: ${SUPABASE_PROJECT_ID}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY}
+
+      # ── URLs ──
+      NEXT_PUBLIC_URL: "https://${DASHBOARD_DOMAIN}"
+      NEXT_PUBLIC_API_URL: "https://${API_DOMAIN}"
+
+      # ── Redis ──
+      REDIS_URL: redis://redis:6379
+
+      # ── Auth & Secrets ──
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+      INVOICE_JWT_SECRET: ${INVOICE_JWT_SECRET}
+      FILE_KEY_SECRET: ${FILE_KEY_SECRET}
+      WEBHOOK_SECRET_KEY: ${WEBHOOK_SECRET_KEY}
+      MIDDAY_CACHE_API_SECRET: ${MIDDAY_CACHE_API_SECRET}
+
+      # ── Email ──
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_AUDIENCE_ID: ${RESEND_AUDIENCE_ID}
+
+      # ── OpenAI ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # ── Banking: Teller ──
+      TELLER_CERTIFICATE: ${TELLER_CERT_BASE64}
+      TELLER_CERTIFICATE_PRIVATE_KEY: ${TELLER_KEY_BASE64}
+      TELLER_SIGNING_SECRET: ${TELLER_SIGNING_SECRET}
+      NEXT_PUBLIC_TELLER_APPLICATION_ID: ${TELLER_APPLICATION_ID}
+      NEXT_PUBLIC_TELLER_ENVIRONMENT: ${TELLER_ENVIRONMENT:-sandbox}
+
+      # ── Banking: Plaid ──
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SECRET: ${PLAID_SECRET}
+      NEXT_PUBLIC_PLAID_ENVIRONMENT: ${PLAID_ENVIRONMENT:-sandbox}
+
+      # ── Stripe ──
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+
+      # ── Google Maps ──
+      NEXT_PUBLIC_GOOGLE_API_KEY: ${GOOGLE_MAPS_API_KEY}
+
+      # ── Polar ──
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN}
+      POLAR_ENVIRONMENT: ${POLAR_ENVIRONMENT:-sandbox}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET}
+
+      # ── Plain (support) ──
+      PLAIN_API_KEY: ${PLAIN_API_KEY}
+
+      # ── Azure Document Intelligence ──
+      AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}
+      AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY}
+
+      # ── Messaging integrations ──
+      NEXT_PUBLIC_WHATSAPP_NUMBER: ${WHATSAPP_PHONE_NUMBER_ID}
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+
+      # ── OpenPanel analytics ──
+      NEXT_PUBLIC_OPENPANEL_CLIENT_ID: ${OPENPANEL_CLIENT_ID}
+      OPENPANEL_SECRET_KEY: ${OPENPANEL_SECRET_KEY}
+
+      # ── Optional: Sentry ──
+      NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.midday-dashboard.rule=Host(`${DASHBOARD_DOMAIN}`)
+      - traefik.http.routers.midday-dashboard.entrypoints=https
+      - traefik.http.routers.midday-dashboard.tls=true
+      - traefik.http.routers.midday-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.services.midday-dashboard.loadbalancer.server.port=3000
+    networks:
+      - midday
+      - coolify
+
+volumes:
+  redis_data:
+
+networks:
+  midday:
+    internal: true
+  coolify:
+    external: true
+    name: coolify
