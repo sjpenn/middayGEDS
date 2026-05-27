@@ -39,8 +39,10 @@ COPY --from=installer /app/apps/api ./apps/api
 COPY --from=installer /app/packages ./packages
 COPY --from=installer /app/package.json ./package.json
 
-# Carry the git SHA into the runtime container (stamped by CI before `railway up`)
-COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
+# Self-host build: synthesize /tmp/git-sha.txt from build-arg or "unknown".
+# (Railway CI used to write /app/.git-commit-sha before `railway up`.)
+ARG GIT_COMMIT_SHA=unknown
+RUN echo "${GIT_COMMIT_SHA}" > /tmp/git-sha.txt
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
