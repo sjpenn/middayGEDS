@@ -1,13 +1,13 @@
 // The new-user gate prevents sign-ups after a cutoff date.
-// For self-hosted deployments set NEW_USER_GATE_ENABLED=false (or leave it
-// unset) in your environment to disable the gate entirely.
-// On midday.ai production this is enabled by default with a hardcoded cutoff.
+// For self-hosted deployments leave NEW_USER_GATE_ENABLED unset (or "false")
+// to disable the gate entirely — every login succeeds.
+// On midday.ai production this is enabled with a hardcoded cutoff.
 
-export const NEW_USER_CUTOFF = "2026-04-20T00:00:00.000Z";
+export const NEW_USER_CUTOFF = "2099-01-01T00:00:00.000Z";
 
 export function isBlockedNewUser(createdAt: string | null | undefined) {
   // Gate is disabled unless explicitly enabled via env var.
-  // Self-hosted instances should leave this unset (default: disabled).
+  // Self-hosted instances leave this unset (default: disabled).
   const gateEnabled =
     process.env.NEW_USER_GATE_ENABLED === "true" ||
     process.env.NEXT_PUBLIC_NEW_USER_GATE_ENABLED === "true";

@@ -60,9 +60,12 @@ ARG SENTRY_PROJECT
 ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 
-# Git SHA stamped by CI (echo "$GITHUB_SHA" > .git-commit-sha) before `railway up`.
-# The file lives at repo root, so the builder stage has it after COPY . .
-COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
+# Self-host build: synthesize /tmp/git-sha.txt in the installer stage so the
+# downstream `COPY --from=installer /tmp/git-sha.txt` keeps working.
+# Pass --build-arg GIT_COMMIT_SHA=$(git rev-parse HEAD) for accurate stamping,
+# otherwise it falls back to "unknown".
+ARG GIT_COMMIT_SHA=unknown
+RUN echo "${GIT_COMMIT_SHA}" > /tmp/git-sha.txt
 
 ENV CI=true
 ENV NODE_ENV=production
