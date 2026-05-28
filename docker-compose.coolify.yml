@@ -298,12 +298,17 @@ services:
       # ── URLs ──
       NEXT_PUBLIC_URL: "https://${DASHBOARD_DOMAIN}"
       NEXT_PUBLIC_API_URL: "https://${API_DOMAIN}"
+      # Internal URL used by dashboard SSR to reach the API directly over the
+      # Docker network — avoids the public internet round-trip through Traefik.
+      API_INTERNAL_URL: "http://api:8080"
 
       # ── Redis ──
       REDIS_URL: redis://redis:6379
 
       # ── Auth & Secrets ──
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+      # Set to false (or omit) on self-hosted instances to allow all sign-ups.
+      NEW_USER_GATE_ENABLED: ${NEW_USER_GATE_ENABLED:-false}
       INVOICE_JWT_SECRET: ${INVOICE_JWT_SECRET}
       FILE_KEY_SECRET: ${FILE_KEY_SECRET}
       WEBHOOK_SECRET_KEY: ${WEBHOOK_SECRET_KEY}

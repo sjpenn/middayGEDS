@@ -17,11 +17,11 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ waitlist?: string }>;
+  searchParams: Promise<{ waitlist?: string; error?: string }>;
 };
 
 export default async function Page({ searchParams }: Props) {
-  const { waitlist: waitlistParam } = await searchParams;
+  const { waitlist: waitlistParam, error: errorParam } = await searchParams;
   const cookieStore = await cookies();
   const preferred = cookieStore.get(Cookies.PreferredSignInProvider);
   const { device } = userAgent({ headers: await headers() });
@@ -166,6 +166,15 @@ export default async function Page({ searchParams }: Props) {
       <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 lg:p-12 pb-2">
         <div className="w-full max-w-md flex flex-col h-full">
           <div className="space-y-8 flex-1 flex flex-col justify-center">
+            {errorParam === "callback_failed" && (
+              <div className="text-center space-y-2 rounded-md border border-destructive/40 bg-destructive/10 p-4">
+                <p className="font-sans text-sm text-destructive">
+                  Sign-in failed. Please check that your Supabase redirect URLs
+                  are configured correctly, then try again.
+                </p>
+              </div>
+            )}
+
             {showQueueNotice ? (
               <div className="text-center space-y-2">
                 <h1 className="text-lg lg:text-xl mb-4 font-serif">
