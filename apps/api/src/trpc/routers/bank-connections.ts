@@ -14,12 +14,13 @@ import {
   getBankConnections,
   reconnectBankConnection,
 } from "@midday/db/queries";
-import type {
-  DeleteConnectionPayload,
-  InitialBankSetupPayload,
-} from "@midday/jobs/schema";
+import type { DeleteConnectionPayload } from "@midday/jobs/schema";
+import { triggerJob } from "@midday/job-client";
+import { createLoggerWithContext } from "@midday/logger";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
+
+const logger = createLoggerWithContext("trpc:bank-connections");
 
 export const bankConnectionsRouter = createTRPCRouter({
   get: protectedProcedure
@@ -47,10 +48,16 @@ export const bankConnectionsRouter = createTRPCRouter({
         });
       }
 
-      const event = await tasks.trigger("initial-bank-setup", {
-        connectionId: data.id,
-        teamId: teamId!,
-      } satisfies InitialBankSetupPayload);
+      // Run the initial sync on the BullMQ worker. Returns a composite job id
+      // ("transactions:<id>") the client polls via jobs.getStatus.
+      const event = await triggerJob(
+        "initial-bank-setup",
+        {
+          connectionId: data.id,
+          teamId: teamId!,
+        },
+        "transactions",
+      );
 
       return event;
     }),
@@ -67,11 +74,21 @@ export const bankConnectionsRouter = createTRPCRouter({
         throw new Error("Bank connection not found");
       }
 
-      await tasks.trigger("delete-connection", {
-        referenceId: data.referenceId,
-        provider: data.provider!,
-        accessToken: data.accessToken,
-      } satisfies DeleteConnectionPayload);
+      // Provider-side cleanup still runs on Trigger.dev. Best-effort: the DB
+      // rows are already deleted above, so a missing Trigger.dev config (common
+      // on self-hosted deploys) must not fail the user-facing delete.
+      // TODO: port delete-connection to a BullMQ processor.
+      try {
+        await tasks.trigger("delete-connection", {
+          referenceId: data.referenceId,
+          provider: data.provider!,
+          accessToken: data.accessToken,
+        } satisfies DeleteConnectionPayload);
+      } catch (error) {
+        logger.error("Failed to trigger provider connection cleanup", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
 
       return data;
     }),

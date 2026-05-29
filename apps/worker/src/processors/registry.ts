@@ -5,6 +5,7 @@ import { isDevelopment } from "../utils/env";
 const logger = createLoggerWithContext("worker:registry");
 
 import { accountingProcessors } from "./accounting";
+import { bankProcessors } from "./bank";
 import { customerProcessors } from "./customers";
 import { documentProcessors } from "./documents";
 import { inboxProcessors } from "./inbox";
@@ -32,6 +33,11 @@ for (const [jobName, processor] of Object.entries(inboxProcessors)) {
 
 // Register transaction processors
 for (const [jobName, processor] of Object.entries(transactionProcessors)) {
+  processors.set(jobName, processor);
+}
+
+// Register bank processors
+for (const [jobName, processor] of Object.entries(bankProcessors)) {
   processors.set(jobName, processor);
 }
 

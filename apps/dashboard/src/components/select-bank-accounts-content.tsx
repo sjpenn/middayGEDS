@@ -256,15 +256,17 @@ export function SelectBankAccountsContent({
           });
 
           if (onSyncStarted && onComplete) {
+            // accessToken is retained for signature compatibility; the initial
+            // sync now runs on BullMQ and is tracked by the job id (data.id).
             onSyncStarted({
               runId: data.id,
-              accessToken: data.publicAccessToken,
+              accessToken: "",
             });
             setParams(null);
             onComplete();
           } else {
             setRunId(data.id);
-            setAccessToken(data.publicAccessToken);
+            setAccessToken(undefined);
             setActiveTab("loading");
           }
         }
