@@ -11,6 +11,9 @@ export type LinkTokenCreateRequest = {
   language?: string;
   accessToken?: string;
   environment?: "sandbox" | "production";
+  // Required for OAuth institutions (e.g. major US banks). Must exactly match a
+  // redirect URI registered in the Plaid dashboard for the active environment.
+  redirectUri?: string;
 };
 
 export type GetStatusResponse = {

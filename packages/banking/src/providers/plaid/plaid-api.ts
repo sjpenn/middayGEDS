@@ -57,11 +57,15 @@ export class PlaidApi {
   }
 
   #generateWebhookUrl(environment: "sandbox" | "production") {
-    if (environment === "sandbox") {
-      return "https://api-staging.midday.ai/webhook/plaid";
-    }
+    // Self-hosted instances set MIDDAY_API_URL to their own API origin so Plaid
+    // webhooks reach this deployment instead of the upstream midday.ai service.
+    const base =
+      process.env.MIDDAY_API_URL ||
+      (environment === "sandbox"
+        ? "https://api-staging.midday.ai"
+        : "https://api.midday.ai");
 
-    return "https://api.midday.ai/webhook/plaid";
+    return `${base.replace(/\/$/, "")}/webhook/plaid`;
   }
 
   async getHealthCheck() {
@@ -202,6 +206,7 @@ export class PlaidApi {
     language = "en",
     accessToken,
     environment = "production",
+    redirectUri,
   }: LinkTokenCreateRequest): Promise<
     import("axios").AxiosResponse<LinkTokenCreateResponse>
   > {
@@ -214,6 +219,9 @@ export class PlaidApi {
       access_token: accessToken,
       country_codes: this.#countryCodes,
       webhook: this.#generateWebhookUrl(environment),
+      // Enables the OAuth redirect flow for OAuth banks. Omitted when unset so
+      // non-OAuth setups keep the popup flow.
+      ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       transactions: {
         days_requested: 730,
       },

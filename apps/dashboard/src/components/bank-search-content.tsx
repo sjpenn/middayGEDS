@@ -146,6 +146,11 @@ export function BankSearchContent({
       onSuccess: (result) => {
         if (result.data.link_token) {
           setPlaidToken(result.data.link_token);
+          // Persist so the OAuth redirect flow can resume Link on the /plaid
+          // return page (OAuth banks full-page redirect away and back).
+          try {
+            localStorage.setItem("plaid_link_token", result.data.link_token);
+          } catch {}
         }
       },
     }),

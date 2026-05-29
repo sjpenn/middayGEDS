@@ -44,6 +44,10 @@ export const bankingRouter = createTRPCRouter({
           userId: ctx.session.user.id,
           language: input?.language,
           accessToken: input?.accessToken,
+          // OAuth banks (e.g. Truist) require a redirect URI registered in the
+          // Plaid dashboard. Set PLAID_OAUTH_REDIRECT_URL to the dashboard's
+          // /plaid resume route, e.g. https://midday.eudaven.com/plaid
+          redirectUri: process.env.PLAID_OAUTH_REDIRECT_URL || undefined,
         });
 
         return {
