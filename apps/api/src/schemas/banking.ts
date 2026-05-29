@@ -27,6 +27,11 @@ export const plaidExchangeSchema = z.object({
   token: z.string(),
 });
 
+// Hosted Link: retrieve the public_token from a completed hosted session.
+export const plaidHostedCompleteSchema = z.object({
+  linkToken: z.string(),
+});
+
 export const gocardlessLinkSchema = z.object({
   institutionId: z.string(),
   agreement: z.string(),

@@ -146,11 +146,24 @@ export function BankSearchContent({
       onSuccess: (result) => {
         if (result.data.link_token) {
           setPlaidToken(result.data.link_token);
-          // Persist so the OAuth redirect flow can resume Link on the /plaid
-          // return page (OAuth banks full-page redirect away and back).
+        }
+      },
+    }),
+  );
+
+  // Hosted Link: full-page redirect to Plaid (handles OAuth on Plaid's domain),
+  // avoiding the embedded-popup flow that crashes for OAuth banks on web.
+  const createHostedLink = useMutation(
+    trpc.banking.plaidCreateHostedLink.mutationOptions({
+      onSuccess: (result) => {
+        const { hostedLinkUrl, linkToken } = result.data;
+        if (linkToken) {
           try {
-            localStorage.setItem("plaid_link_token", result.data.link_token);
+            localStorage.setItem("plaid_link_token", linkToken);
           } catch {}
+        }
+        if (hostedLinkUrl) {
+          window.location.href = hostedLinkUrl;
         }
       },
     }),
@@ -271,7 +284,9 @@ export function BankSearchContent({
                 type={institution?.type ?? undefined}
                 openPlaid={() => {
                   setParams({ step: null });
-                  openPlaid();
+                  // Use Plaid Hosted Link (full-page redirect) instead of the
+                  // embedded popup, which crashes for OAuth banks on web.
+                  createHostedLink.mutate();
                 }}
                 redirectPath={redirectPath}
                 countryCode={countryCode}

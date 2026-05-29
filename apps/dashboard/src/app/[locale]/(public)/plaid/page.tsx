@@ -2,39 +2,68 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { usePlaidLink } from "react-plaid-link";
+import { useEffect, useRef, useState } from "react";
 import { useTRPC } from "@/trpc/client";
 
 /**
- * Plaid OAuth redirect return page.
+ * Plaid Hosted Link completion handler.
  *
- * OAuth banks (e.g. Truist) full-page redirect to the bank for authentication
- * and back to this route (registered as the Plaid redirect URI). We re-create
- * Plaid Link with the original link_token + `receivedRedirectUri` so Link
- * resumes and completes, then hand off to the normal account-select step.
+ * Plaid hosts the entire Link flow (including OAuth) on its own domain and
+ * redirects here on completion. Hosted Link has no frontend onSuccess, so we
+ * fetch the public_token from the completed session (by the link_token we
+ * persisted before redirecting), exchange it, and hand off to account-select.
  */
-export default function PlaidOAuthReturnPage() {
+export default function PlaidHostedCompletePage() {
   const trpc = useTRPC();
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
-  const [redirectUri, setRedirectUri] = useState<string | undefined>();
+  const [error, setError] = useState(false);
+  const ran = useRef(false);
 
-  useEffect(() => {
-    setToken(localStorage.getItem("plaid_link_token"));
-    setRedirectUri(window.location.href);
-  }, []);
-
+  const hostedComplete = useMutation(
+    trpc.banking.plaidHostedComplete.mutationOptions(),
+  );
   const exchangeToken = useMutation(
     trpc.banking.plaidExchange.mutationOptions(),
   );
 
-  const { open, ready } = usePlaidLink({
-    token,
-    receivedRedirectUri: redirectUri,
-    onSuccess: async (publicToken, metadata) => {
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+
+    const linkToken =
+      typeof window !== "undefined"
+        ? localStorage.getItem("plaid_link_token")
+        : null;
+
+    if (!linkToken) {
+      router.replace("/settings/accounts?step=connect");
+      return;
+    }
+
+    (async () => {
+      // The session may take a moment to finalize after the redirect.
+      let publicToken: string | undefined;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const res = await hostedComplete.mutateAsync({ linkToken });
+          publicToken = res.data.publicToken;
+          if (publicToken) break;
+        } catch {
+          // retry
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      if (!publicToken) {
+        localStorage.removeItem("plaid_link_token");
+        setError(true);
+        router.replace("/settings/accounts?step=connect&error=plaid_session");
+        return;
+      }
+
       try {
         const result = await exchangeToken.mutateAsync({ token: publicToken });
+        localStorage.removeItem("plaid_link_token");
 
         const params = new URLSearchParams({
           step: "account",
@@ -42,40 +71,20 @@ export default function PlaidOAuthReturnPage() {
           token: result.data.access_token,
           ref: result.data.item_id,
         });
-
-        if (metadata.institution?.institution_id) {
-          params.set("institution_id", metadata.institution.institution_id);
-        }
-
-        localStorage.removeItem("plaid_link_token");
         router.replace(`/settings/accounts?${params.toString()}`);
       } catch {
         localStorage.removeItem("plaid_link_token");
+        setError(true);
         router.replace("/settings/accounts?step=connect&error=plaid_exchange");
       }
-    },
-    onExit: () => {
-      localStorage.removeItem("plaid_link_token");
-      router.replace("/settings/accounts?step=connect");
-    },
-  });
-
-  useEffect(() => {
-    if (ready && token && redirectUri) {
-      open();
-    }
-  }, [ready, token, redirectUri, open]);
-
-  useEffect(() => {
-    if (token === null && redirectUri) {
-      // No pending link token — nothing to resume.
-      router.replace("/settings/accounts?step=connect");
-    }
-  }, [token, redirectUri, router]);
+    })();
+  }, [hostedComplete, exchangeToken, router]);
 
   return (
     <div className="flex h-screen items-center justify-center">
-      <p className="text-sm text-[#878787]">Completing bank connection…</p>
+      <p className="text-sm text-[#878787]">
+        {error ? "Connection failed. Redirecting…" : "Completing bank connection…"}
+      </p>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   gocardlessAgreementSchema,
   gocardlessLinkSchema,
   plaidExchangeSchema,
+  plaidHostedCompleteSchema,
   plaidLinkSchema,
 } from "@api/schemas/banking";
 import {
@@ -86,6 +87,78 @@ export const bankingRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to exchange Plaid token",
+        });
+      }
+    }),
+
+  // Hosted Link: Plaid hosts the entire Link flow (incl. OAuth) on its domain,
+  // then redirects to the completion URL. Avoids the embedded-popup OAuth that
+  // crashes on self-hosted web. Returns hosted_link_url to redirect the user to.
+  plaidCreateHostedLink: protectedProcedure.mutation(async ({ ctx }) => {
+    const api = new PlaidApi();
+    const completionUri = process.env.PLAID_OAUTH_REDIRECT_URL;
+
+    if (!completionUri) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "PLAID_OAUTH_REDIRECT_URL is not configured",
+      });
+    }
+
+    try {
+      const { data } = await api.linkTokenCreate({
+        userId: ctx.session.user.id,
+        redirectUri: completionUri,
+        hostedCompletionUri: completionUri,
+      });
+
+      return {
+        data: {
+          // hosted_link_url present on Hosted Link responses
+          hostedLinkUrl: (data as unknown as { hosted_link_url?: string })
+            .hosted_link_url,
+          linkToken: data.link_token,
+        },
+      };
+    } catch (error) {
+      logger.error(
+        "Failed to create Plaid hosted link",
+        getProviderErrorDetails(error),
+      );
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create Plaid hosted link",
+      });
+    }
+  }),
+
+  // Hosted Link has no frontend onSuccess; fetch the public_token from the
+  // completed session, then the dashboard exchanges it via plaidExchange.
+  plaidHostedComplete: protectedProcedure
+    .input(plaidHostedCompleteSchema)
+    .mutation(async ({ input }) => {
+      const api = new PlaidApi();
+
+      try {
+        const publicToken = await api.linkTokenGet(input.linkToken);
+
+        if (!publicToken) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No completed Plaid session for this link token",
+          });
+        }
+
+        return { data: { publicToken } };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        logger.error(
+          "Failed to get Plaid hosted session",
+          getProviderErrorDetails(error),
+        );
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get Plaid hosted session",
         });
       }
     }),

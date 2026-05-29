@@ -207,6 +207,7 @@ export class PlaidApi {
     accessToken,
     environment = "production",
     redirectUri,
+    hostedCompletionUri,
   }: LinkTokenCreateRequest): Promise<
     import("axios").AxiosResponse<LinkTokenCreateResponse>
   > {
@@ -222,13 +223,46 @@ export class PlaidApi {
       // Enables the OAuth redirect flow for OAuth banks. Omitted when unset so
       // non-OAuth setups keep the popup flow.
       ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+      // Hosted Link: Plaid hosts the entire Link flow (incl. OAuth) on its own
+      // domain and redirects back to completion_redirect_uri. Avoids the
+      // embedded-popup OAuth flow that crashes on self-hosted web.
+      ...(hostedCompletionUri
+        ? {
+            hosted_link: {
+              completion_redirect_uri: hostedCompletionUri,
+            },
+          }
+        : {}),
       transactions: {
         days_requested: 730,
       },
       user: {
         client_user_id: userId,
       },
-    });
+      // biome-ignore lint/suspicious/noExplicitAny: hosted_link typing varies by SDK minor version
+    } as any);
+  }
+
+  // Retrieve a completed Link session (used by Hosted Link, which has no
+  // frontend onSuccess). Returns the public_token once the user finishes.
+  async linkTokenGet(linkToken: string): Promise<string | null> {
+    const { data } = await this.#client.linkTokenGet({ link_token: linkToken });
+    const d = data as unknown as {
+      link_sessions?: Array<{
+        results?: {
+          item_add_results?: Array<{ public_token?: string }>;
+        };
+        on_success?: { public_token?: string };
+      }>;
+    };
+
+    for (const session of d.link_sessions ?? []) {
+      const fromResults = session.results?.item_add_results?.[0]?.public_token;
+      if (fromResults) return fromResults;
+      if (session.on_success?.public_token) return session.on_success.public_token;
+    }
+
+    return null;
   }
 
   async institutionsGetById(institution_id: string) {

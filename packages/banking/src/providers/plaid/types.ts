@@ -14,6 +14,9 @@ export type LinkTokenCreateRequest = {
   // Required for OAuth institutions (e.g. major US banks). Must exactly match a
   // redirect URI registered in the Plaid dashboard for the active environment.
   redirectUri?: string;
+  // When set, creates a Hosted Link token (Plaid hosts the full flow) and the
+  // response includes hosted_link_url. Plaid redirects here after completion.
+  hostedCompletionUri?: string;
 };
 
 export type GetStatusResponse = {
