@@ -41,7 +41,10 @@ export type GetTransactionsRequest = {
 
 export type GetAccountsRequest = {
   accessToken: string;
-  institutionId: string;
+  // Optional: when omitted it is derived from the Item the access_token belongs
+  // to (accountsGet returns item.institution_id). Hosted Link completion has no
+  // institution metadata to pass through, so the server resolves it instead.
+  institutionId?: string;
 };
 
 export type ItemPublicTokenExchangeRequest = {

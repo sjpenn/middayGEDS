@@ -127,7 +127,17 @@ export class PlaidApi {
         }),
       );
 
-      const institution = await this.institutionsGetById(institutionId);
+      // The access_token already identifies the Item and its institution, so
+      // fall back to the Item's institution_id when the caller didn't supply
+      // one (e.g. the Hosted Link completion flow, which has no Link metadata).
+      const resolvedInstitutionId =
+        institutionId ?? accounts.data.item.institution_id ?? undefined;
+
+      if (!resolvedInstitutionId) {
+        throw new Error("Unable to resolve institutionId for Plaid accounts");
+      }
+
+      const institution = await this.institutionsGetById(resolvedInstitutionId);
 
       return accounts.data.accounts.map((account) => ({
         ...account,

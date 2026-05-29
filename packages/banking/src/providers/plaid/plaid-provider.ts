@@ -53,8 +53,11 @@ export class PlaidProvider implements Provider {
   }
 
   async getAccounts({ accessToken, institutionId }: GetAccountsRequest) {
-    if (!accessToken || !institutionId) {
-      throw Error("accessToken or institutionId is missing");
+    // institutionId is optional: when absent it is derived from the Item the
+    // access_token belongs to. The Hosted Link completion flow has no Link
+    // metadata to pass institution_id through, so only require accessToken.
+    if (!accessToken) {
+      throw Error("accessToken is missing");
     }
 
     const response = await this.#api.getAccounts({
