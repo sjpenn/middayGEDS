@@ -26,8 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=builder /app/out/json/ .
 COPY bunfig.toml .
 
-# Install dependencies
-RUN bun install
+# Install dependencies — force devDependencies even when the platform injects
+# NODE_ENV=production into the build (bun omits devDeps under NODE_ENV=production,
+# which strips the build toolchain and produces a broken/stale client bundle).
+RUN NODE_ENV=development bun install
 
 # Copy full source from pruned workspace
 COPY --from=builder /app/out/full/ .

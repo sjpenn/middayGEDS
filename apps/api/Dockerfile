@@ -20,7 +20,9 @@ WORKDIR /app
 # Install dependencies
 COPY --from=builder /app/out/json/ .
 COPY bunfig.toml .
-RUN bun install
+# Force devDependencies even when the platform injects NODE_ENV=production
+# (bun omits devDeps under NODE_ENV=production, stripping the build toolchain).
+RUN NODE_ENV=development bun install
 
 # Copy full source
 COPY --from=builder /app/out/full/ .

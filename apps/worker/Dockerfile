@@ -29,7 +29,9 @@ COPY bunfig.toml .
 
 # Install dependencies (before copying full source to maximize cache hits)
 RUN rm -f bun.lock
-RUN bun install
+# Force devDependencies even when the platform injects NODE_ENV=production
+# (bun omits devDeps under NODE_ENV=production, stripping the build toolchain).
+RUN NODE_ENV=development bun install
 
 # Copy full source from worker pruned workspace
 COPY --from=builder /app/out/worker/full/ .
